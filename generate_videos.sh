@@ -531,6 +531,7 @@ a:hover {
 }
 
 .empty-state {
+    grid-column: 1 / -1;
     text-align: center;
     padding: 4rem 2rem;
     color: var(--text-secondary);
@@ -541,56 +542,555 @@ a:hover {
     margin-bottom: 1rem;
     opacity: 0.5;
 }
+
+.gallery-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+    padding: 0.85rem 1.15rem;
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    backdrop-filter: blur(12px);
+}
+
+.gallery-bar__count {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.gallery-bar__count strong {
+    color: var(--accent-cyan);
+    font-family: var(--font-mono);
+    font-weight: 500;
+}
+
+.gallery-bar__pages {
+    margin-left: 0.75rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+.gallery-bar__sort {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+}
+
+.search-field {
+    flex: 1 1 220px;
+    min-width: 180px;
+}
+
+.search-field input {
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.85rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+.search-field input:hover,
+.search-field input:focus {
+    border-color: var(--border-glow);
+    outline: none;
+}
+
+.search-field input::placeholder {
+    color: var(--text-muted);
+}
+
+.sort-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.sort-field select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: var(--bg-elevated);
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--accent-blue) 50%),
+        linear-gradient(135deg, var(--accent-blue) 50%, transparent 50%);
+    background-position:
+        calc(100% - 14px) calc(50% - 3px),
+        calc(100% - 9px) calc(50% - 3px);
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 0.45rem 1.8rem 0.45rem 0.8rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.sort-field select:hover,
+.sort-field select:focus {
+    border-color: var(--border-glow);
+    outline: none;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 2.5rem;
+}
+
+.pagination--top {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+}
+
+.pagination[hidden] {
+    display: none;
+}
+
+.pagination__btn {
+    min-width: 2.5rem;
+    height: 2.5rem;
+    padding: 0 0.65rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+
+.pagination__btn:hover:not(:disabled) {
+    border-color: var(--border-glow);
+    color: var(--accent-blue);
+    transform: translateY(-1px);
+}
+
+.pagination__btn.is-current {
+    border-color: transparent;
+    background: var(--accent-gradient);
+    color: var(--bg-deep);
+    font-weight: 600;
+    cursor: default;
+    transform: none;
+}
+
+.pagination__btn:disabled:not(.is-current) {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.pagination__ellipsis {
+    min-width: 2.5rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+}
+
+@media (max-width: 560px) {
+    .gallery-bar {
+        align-items: flex-start;
+    }
+}
 STYLES_EOF
 }
 
-# 列表页：悬停时按 1s 间隔循环播放 9 张截图
-emit_preview_script() {
-cat << 'PREVIEW_JS_EOF'
-<script>
+# 将文件名编码为 JSON 字符串（含引号）
+json_escape_string() {
+    local s="$1"
+    local i c out
+    out='"'
+    local len=${#s}
+    for ((i = 0; i < len; i++)); do
+        c=${s:i:1}
+        case "$c" in
+            '"')   out+='\"' ;;
+            \\)    out+='\\' ;;
+            $'\n') out+='\n' ;;
+            $'\r') out+='\r' ;;
+            $'\t') out+='\t' ;;
+            '<')   out+='\u003c' ;;
+            '>')   out+='\u003e' ;;
+            '&')   out+='\u0026' ;;
+            *)     out+="$c" ;;
+        esac
+    done
+    out+='"'
+    printf '%s' "$out"
+}
+
+get_file_mtime() {
+    local f="$1"
+    local t
+    t=$(stat -c '%Y' "$f" 2>/dev/null) && { echo "$t"; return; }
+    t=$(stat -f '%m' "$f" 2>/dev/null) && { echo "$t"; return; }
+    echo 0
+}
+
+# 列表页：前端全量数据 + 排序/分页，悬停时按 1s 间隔循环播放 9 张截图
+emit_gallery_script() {
+    echo '<script>'
+    echo 'var VIDEO_DATA = ['
+    local item
+    for item in "${VIDEO_JSON_ITEMS[@]}"; do
+        printf '    %s,\n' "$item"
+    done
+    echo '];'
+    cat << 'GALLERY_JS_EOF'
 (function () {
+    var PAGE_SIZE = 28;
     var INTERVAL_MS = 1000;
-    var cards = document.querySelectorAll(".video-card[data-preview]");
-    for (var c = 0; c < cards.length; c++) {
-        (function (card) {
-            var img = card.querySelector(".video-card__thumb");
-            if (!img) return;
-            var frames = card.getAttribute("data-preview").split(",");
-            var defaultSrc = img.getAttribute("data-default") || img.getAttribute("src");
-            var timer = null;
-            var index = 0;
+    var state = {
+        page: 1,
+        sortBy: "mtime",
+        sortOrder: "desc",
+        query: ""
+    };
+    var previewTimer = null;
+    var previewCard = null;
 
-            function stopPreview() {
-                if (timer !== null) {
-                    clearInterval(timer);
-                    timer = null;
-                }
-                card.classList.remove("is-previewing");
-                img.src = defaultSrc;
-            }
-
-            function startPreview() {
-                stopPreview();
-                card.classList.add("is-previewing");
-                for (var p = 0; p < frames.length; p++) {
-                    var preload = new Image();
-                    preload.src = frames[p];
-                }
-                index = 0;
-                img.src = frames[0];
-                timer = setInterval(function () {
-                    index = (index + 1) % frames.length;
-                    img.src = frames[index];
-                }, INTERVAL_MS);
-            }
-
-            card.addEventListener("mouseenter", startPreview);
-            card.addEventListener("mouseleave", stopPreview);
-        })(cards[c]);
+    function escapeHtml(s) {
+        return String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
     }
+
+    function formatMtime(ts) {
+        var n = Number(ts);
+        if (!n) return "";
+        var d = new Date(n * 1000);
+        if (isNaN(d.getTime())) return "";
+        function pad(x) { return x < 10 ? "0" + x : String(x); }
+        return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+            " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+    }
+
+    function foldText(s) {
+        return String(s || "").toLowerCase().replace(/[_\-.\s]+/g, "");
+    }
+
+    function isSubsequence(hay, needle) {
+        var i = 0, j = 0;
+        while (i < hay.length && j < needle.length) {
+            if (hay.charAt(i) === needle.charAt(j)) j++;
+            i++;
+        }
+        return j === needle.length;
+    }
+
+    function tokenMatches(hay, hayFold, token) {
+        if (!token) return true;
+        if (hay.indexOf(token) !== -1) return true;
+        var folded = foldText(token);
+        if (folded && hayFold.indexOf(folded) !== -1) return true;
+        if (folded && isSubsequence(hayFold, folded)) return true;
+        return false;
+    }
+
+    function itemMatches(item, query) {
+        var q = String(query || "").trim().toLowerCase();
+        if (!q) return true;
+        var name = String(item.name || "").toLowerCase();
+        var md5 = String(item.md5 || "").toLowerCase();
+        var hay = name + " " + md5;
+        var hayFold = foldText(name) + foldText(md5);
+        var tokens = q.split(/\s+/);
+        var t;
+        for (t = 0; t < tokens.length; t++) {
+            if (!tokenMatches(hay, hayFold, tokens[t])) return false;
+        }
+        return true;
+    }
+
+    function filteredData() {
+        var list = [];
+        var i;
+        for (i = 0; i < VIDEO_DATA.length; i++) {
+            if (itemMatches(VIDEO_DATA[i], state.query)) list.push(VIDEO_DATA[i]);
+        }
+        return list;
+    }
+
+    function sortedData() {
+        var list = filteredData();
+        var by = state.sortBy;
+        var dir = state.sortOrder === "asc" ? 1 : -1;
+        list.sort(function (a, b) {
+            var cmp = 0;
+            if (by === "name") {
+                cmp = String(a.name).localeCompare(String(b.name), "zh-CN", {
+                    numeric: true,
+                    sensitivity: "base"
+                });
+            } else {
+                cmp = Number(a.mtime || 0) - Number(b.mtime || 0);
+                if (cmp === 0) {
+                    cmp = String(a.name).localeCompare(String(b.name), "zh-CN", {
+                        numeric: true,
+                        sensitivity: "base"
+                    });
+                }
+            }
+            return cmp * dir;
+        });
+        return list;
+    }
+
+    function totalPages(len) {
+        return Math.max(1, Math.ceil(len / PAGE_SIZE));
+    }
+
+    function getVisiblePages(current, total) {
+        var i, show = {}, nums = [], out = [];
+        function add(p) {
+            if (p >= 1 && p <= total) show[p] = 1;
+        }
+        if (total <= 7) {
+            for (i = 1; i <= total; i++) out.push(i);
+            return out;
+        }
+        add(1);
+        add(2);
+        add(total);
+        add(total - 1);
+        for (i = current - 1; i <= current + 1; i++) add(i);
+        if (current <= 3) add(3);
+        if (current >= total - 2) add(total - 2);
+        for (i = 1; i <= total; i++) {
+            if (show[i]) nums.push(i);
+        }
+        for (i = 0; i < nums.length; i++) {
+            if (i > 0 && nums[i] !== nums[i - 1] + 1) out.push("...");
+            out.push(nums[i]);
+        }
+        return out;
+    }
+
+    function stopPreview() {
+        if (previewTimer !== null) {
+            clearInterval(previewTimer);
+            previewTimer = null;
+        }
+        if (previewCard) {
+            var img = previewCard.querySelector(".video-card__thumb");
+            if (img) {
+                var def = img.getAttribute("data-default") || img.getAttribute("src");
+                img.src = def;
+            }
+            previewCard.classList.remove("is-previewing");
+            previewCard = null;
+        }
+    }
+
+    function bindPreview(card) {
+        var img = card.querySelector(".video-card__thumb");
+        if (!img) return;
+        var frames = (card.getAttribute("data-preview") || "").split(",");
+        if (!frames.length || !frames[0]) return;
+
+        card.addEventListener("mouseenter", function () {
+            stopPreview();
+            previewCard = card;
+            card.classList.add("is-previewing");
+            var p;
+            for (p = 0; p < frames.length; p++) {
+                var preload = new Image();
+                preload.src = frames[p];
+            }
+            img.src = frames[0];
+            var index = 0;
+            previewTimer = setInterval(function () {
+                index = (index + 1) % frames.length;
+                img.src = frames[index];
+            }, INTERVAL_MS);
+        });
+        card.addEventListener("mouseleave", stopPreview);
+    }
+
+    function renderCard(item) {
+        var article = document.createElement("article");
+        article.className = "video-card";
+        article.setAttribute("data-preview", item.preview || "");
+        var meta = formatMtime(item.mtime);
+        var md5short = String(item.md5 || "").slice(0, 8);
+        if (md5short) {
+            meta = meta ? (meta + " · " + md5short + "…") : (md5short + "…");
+        }
+        article.innerHTML =
+            '<a class="video-card__link" target="_blank" href="video_' + item.md5 + '.html">' +
+            '<div class="video-card__thumb-wrap">' +
+            '<img class="video-card__thumb" src="' + item.thumb + '" data-default="' + item.thumb +
+            '" alt="' + escapeHtml(item.name) + '" loading="lazy">' +
+            '</div>' +
+            '<div class="video-card__body">' +
+            '<h2 class="video-card__title">' + escapeHtml(item.name) + '</h2>' +
+            '<p class="video-card__meta">' + escapeHtml(meta) + '</p>' +
+            '</div></a>';
+        bindPreview(article);
+        return article;
+    }
+
+    function fillPagination(nav, current, total) {
+        nav.innerHTML = "";
+        if (total <= 1) {
+            nav.hidden = true;
+            return;
+        }
+        nav.hidden = false;
+
+        function addBtn(label, page, opts) {
+            opts = opts || {};
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "pagination__btn" + (opts.current ? " is-current" : "");
+            btn.textContent = label;
+            if (opts.current) btn.setAttribute("aria-current", "page");
+            if (opts.disabled || opts.current) {
+                btn.disabled = true;
+            } else if (page) {
+                btn.addEventListener("click", function () { goToPage(page); });
+            }
+            nav.appendChild(btn);
+        }
+
+        addBtn("<", Math.max(1, current - 1), { disabled: current <= 1 });
+        var items = getVisiblePages(current, total);
+        var i, item;
+        for (i = 0; i < items.length; i++) {
+            item = items[i];
+            if (item === "...") {
+                var ell = document.createElement("span");
+                ell.className = "pagination__ellipsis";
+                ell.textContent = "...";
+                ell.setAttribute("aria-hidden", "true");
+                nav.appendChild(ell);
+            } else if (item === current) {
+                addBtn(String(item), item, { current: true });
+            } else {
+                addBtn(String(item), item);
+            }
+        }
+        addBtn(">", Math.min(total, current + 1), { disabled: current >= total });
+    }
+
+    function renderPagination(current, total) {
+        var navs = document.querySelectorAll(".pagination");
+        var n;
+        for (n = 0; n < navs.length; n++) {
+            fillPagination(navs[n], current, total);
+        }
+    }
+
+    function render() {
+        var grid = document.getElementById("video-grid");
+        var countText = document.getElementById("video-count-text");
+        var pageInfo = document.getElementById("page-info");
+        stopPreview();
+        var list = sortedData();
+        var total = list.length;
+        var allCount = VIDEO_DATA.length;
+        var hasQuery = String(state.query || "").trim() !== "";
+        var pages = total === 0 ? 0 : totalPages(total);
+        if (pages > 0 && state.page > pages) state.page = pages;
+        if (state.page < 1) state.page = 1;
+        if (countText) {
+            if (hasQuery) {
+                countText.innerHTML = "匹配 <strong>" + total + "</strong> / " + allCount;
+            } else {
+                countText.innerHTML = "共 <strong>" + allCount + "</strong> 个视频";
+            }
+        }
+        if (pageInfo) {
+            pageInfo.textContent = pages ? ("第 " + state.page + " / " + pages + " 页") : "";
+        }
+        grid.innerHTML = "";
+        if (total === 0) {
+            var emptyMsg = hasQuery
+                ? ("没有匹配「" + escapeHtml(String(state.query).trim()) + "」的视频")
+                : "未找到支持的视频文件（mp4 / avi / rmvb）";
+            grid.innerHTML =
+                '<div class="empty-state">' +
+                '<div class="empty-state__icon">◎</div>' +
+                '<p>' + emptyMsg + '</p>' +
+                '</div>';
+            renderPagination(1, 0);
+            return;
+        }
+        var start = (state.page - 1) * PAGE_SIZE;
+        var end = Math.min(start + PAGE_SIZE, total);
+        var i;
+        for (i = start; i < end; i++) {
+            grid.appendChild(renderCard(list[i]));
+        }
+        renderPagination(state.page, pages);
+    }
+
+    function goToPage(page) {
+        state.page = page;
+        render();
+        var bar = document.querySelector(".gallery-bar");
+        if (bar && bar.scrollIntoView) {
+            bar.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    }
+
+    function init() {
+        var sortBy = document.getElementById("sort-by");
+        var sortOrder = document.getElementById("sort-order");
+        var search = document.getElementById("video-search");
+        if (search) {
+            search.value = state.query;
+            search.addEventListener("input", function () {
+                state.query = search.value;
+                state.page = 1;
+                render();
+            });
+        }
+        if (sortBy) {
+            sortBy.value = state.sortBy;
+            sortBy.addEventListener("change", function () {
+                state.sortBy = sortBy.value;
+                state.page = 1;
+                render();
+            });
+        }
+        if (sortOrder) {
+            sortOrder.value = state.sortOrder;
+            sortOrder.addEventListener("change", function () {
+                state.sortOrder = sortOrder.value;
+                state.page = 1;
+                render();
+            });
+        }
+        render();
+    }
+
+    init();
 })();
-</script>
-PREVIEW_JS_EOF
+GALLERY_JS_EOF
+    echo '</script>'
 }
 
 html_page_open() {
@@ -693,12 +1193,7 @@ generate_video_preview() {
     done
 }
 
-# 生成 index.html 头部
-{
-    html_page_open "Video Gallery" "本地视频预览 · 科技风界面"
-    echo '<div class="video-grid">'
-} > "$LIST_DIR/index.html"
-
+VIDEO_JSON_ITEMS=()
 VIDEO_TOTAL=0
 for video_file in "$VIDEO_DIR"/*.mp4 "$VIDEO_DIR"/*.avi "$VIDEO_DIR"/*.rmvb ; do
     if [ -f "$video_file" ]; then
@@ -765,7 +1260,7 @@ for video_file in "$VIDEO_DIR"/*.mp4 "$VIDEO_DIR"/*.avi "$VIDEO_DIR"/*.rmvb ; do
             progress_update "$VIDEO_INDEX" "$VIDEO_TOTAL" "$base_name" "Skipped"
         fi
 
-        # 将视频卡片添加到 index.html（悬停轮播 9 张截图）
+        # 收集列表页数据（悬停轮播 9 张截图，由前端渲染）
         preview_urls=""
         for si in {1..9}; do
             if [ -n "$preview_urls" ]; then
@@ -778,35 +1273,46 @@ for video_file in "$VIDEO_DIR"/*.mp4 "$VIDEO_DIR"/*.avi "$VIDEO_DIR"/*.rmvb ; do
         else
             default_thumb="video_${md5}/preview.png"
         fi
-        cat >> "$LIST_DIR/index.html" << EOF
-    <article class="video-card" data-preview="${preview_urls}">
-        <a class="video-card__link" target="_blank" href="video_${md5}.html">
-            <div class="video-card__thumb-wrap">
-                <img class="video-card__thumb" src="${default_thumb}" data-default="${default_thumb}" alt="${base_name}" loading="lazy">
-            </div>
-            <div class="video-card__body">
-                <h2 class="video-card__title">${base_name}</h2>
-                <p class="video-card__meta">${md5:0:8}…</p>
-            </div>
-        </a>
-    </article>
-EOF
+        mtime=$(get_file_mtime "$video_file")
+        name_json=$(json_escape_string "$base_name")
+        VIDEO_JSON_ITEMS+=("{ \"name\": ${name_json}, \"md5\": \"${md5}\", \"mtime\": ${mtime}, \"thumb\": \"${default_thumb}\", \"preview\": \"${preview_urls}\" }")
     fi
 done
 
 progress_finish
 
-# 完成 index.html
+# 生成 index.html（全量数据交给前端排序与分页）
 {
-    if [ "$VIDEO_TOTAL" -eq 0 ]; then
-        echo '<div class="empty-state">'
-        echo '<div class="empty-state__icon">◎</div>'
-        echo '<p>未找到支持的视频文件（mp4 / avi / rmvb）</p>'
-        echo '</div>'
-    fi
-    echo '</div>'
-    emit_preview_script
+    html_page_open "Video Gallery" "本地视频预览 · 科技风界面"
+    cat << 'EOF'
+<div class="gallery-bar">
+    <label class="search-field">
+        <input type="search" id="video-search" placeholder="模糊检索文件名" autocomplete="off" spellcheck="false" aria-label="模糊检索">
+    </label>
+    <p class="gallery-bar__count"><span id="video-count-text">共 <strong>0</strong> 个视频</span><span class="gallery-bar__pages" id="page-info"></span></p>
+    <div class="gallery-bar__sort">
+        <label class="sort-field">
+            <span>排序</span>
+            <select id="sort-by" aria-label="排序依据">
+                <option value="mtime" selected>修改时间</option>
+                <option value="name">名称</option>
+            </select>
+        </label>
+        <label class="sort-field">
+            <span>顺序</span>
+            <select id="sort-order" aria-label="排序顺序">
+                <option value="desc" selected>倒序</option>
+                <option value="asc">正序</option>
+            </select>
+        </label>
+    </div>
+</div>
+<nav class="pagination pagination--top" id="pagination-top" aria-label="分页" hidden></nav>
+<div class="video-grid" id="video-grid"></div>
+<nav class="pagination" id="pagination" aria-label="分页" hidden></nav>
+EOF
+    emit_gallery_script
     html_page_close
-} >> "$LIST_DIR/index.html"
+} > "$LIST_DIR/index.html"
 
 echo "Done. ${VIDEO_TOTAL} video(s), index.html updated."
